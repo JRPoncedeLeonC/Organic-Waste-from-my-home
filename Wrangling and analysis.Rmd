@@ -1,0 +1,388 @@
+---
+title: "Organic Waste Wrangling & Analysis"
+author: "Joaquín Rodrigo Ponce de León Conconi"
+date: "6/7/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+I decided to create a list of ten different organic products, and measured the weight of each product that became organic waste in grams for fifteen weeks. The data was stored on pdf, just to put my data wrangling skills to the challenge. The wrangling process is as follows:
+
+WRANGLING
+
+-STEP 1: 
+
+  * Let's call the libraries needed for the wrangling process:
+
+```{r}
+library(tidyverse)
+library(pdftools)
+```
+
+-STEP 2: 
+
+  * Let's upload the pdf file:
+
+```{r}
+pdf <- pdf_text("Organic waste data .pdf") %>% read_lines()
+str(pdf)
+```
+
+```{r}
+pdf
+```
+
+-STEP 3: 
+
+  * We see that the rows are separated by "", so let's filter those out and save the result in pdf_t:
+
+```{r}
+pdf_t <- pdf[str_detect(pdf, "\\w|\\d+")]
+pdf_t
+```
+
+-STEP 4: 
+
+  * We now have all the needed data, but in an inadequate format. However, we also we also see that there are some column names that have the word "Desperdicios", which means wastes in Spanish. Let's show the column names:
+
+```{r}
+col_names <- pdf_t[str_detect(pdf_t, "Desperdicios")]
+col_names <- str_split(col_names, "\\s{2,}") %>% unlist() #Split if there are 2 spaces or more and unlist the list 
+col_names
+
+```
+
+-STEP 5: 
+
+  * Based on the data in STEP 4, we now now there are 15 weeks. However, we want the column names to be in English not Spanish, so let's create a variable (raw_dig) to store data without the column names:
+  
+
+```{r}
+raw_dig <- pdf_t[!str_detect(pdf_t, "Desperdicios")] #raw digits
+raw_dig
+```
+
+-STEP 6: 
+
+  * From STEP 5 we see that the week columns are stored in pairs except for week 15, and since the data for each week is stored in 10 rows we can store the data for each one of the in different variables to facilitate the wrangling:
+
+```{r}
+raw_dig12 <- raw_dig[1:10]#First and second week with words
+raw_dig34 <- raw_dig[11:20]#3rd and 4th
+raw_dig56 <- raw_dig[21:30]#5th and 6th
+raw_dig78 <- raw_dig[31:40]#7th and 8th
+raw_dig910 <- raw_dig[41:50]#9th and 10th
+raw_dig1112 <- raw_dig[51:60]#11th and 12th
+raw_dig1314 <- raw_dig[61:70]#13th and 14th
+raw_dig15 <- raw_dig[71:80]#15th
+```
+
+-STEP 7: 
+
+  * A way to confirm the data storage was successful is by looking at the length of each variable, which should be 10 for all:
+  
+```{r}
+sapply(list(raw_dig12, raw_dig34, raw_dig56, raw_dig78, raw_dig910, raw_dig1112, raw_dig1314, raw_dig15), length)
+```
+
+-STEP 8: 
+
+  * Since weeks 1 and 2 are attached to the product names (STEP 5) we need to split the data and arrange it properly. n_raw_dig12 contains the numeric data for weeks 1 and 2:
+
+```{r}
+s_raw_dig12 <- str_split(raw_dig12, "(?<=[a-zA-Z])\\s*(?=[0-9])") %>% unlist()#split the waste elements from the numbers
+
+#See waste names 
+s_raw_dig12[str_detect(s_raw_dig12, "[a-zA-Z]")]
+
+#Translate manually Spanish names to English names
+waste_n <- c("Egg", "Tortillas", "Tomatoes", "Lettuce", "Parsley", "Cilantro", "Bananas", "Oranges", "Lemons", "Cheese") #waste names
+#Vector with waste numbers
+n_raw_dig12 <- s_raw_dig12[!str_detect(s_raw_dig12, "[a-zA-Z]")] %>% str_split("\\s+") 
+n_raw_dig12
+```
+
+-STEP 9: 
+
+  * We see the 10 rows for both weeks, so we apply a for loop to extract the values using indices [[1-10]] (because it's a list) and [1-2] (because there are 2 columns). This way, we're going to be able to organize the data from weeks 1 and 2 into 2 different data frames (week1 and week2):
+
+```{r}
+week1 <- c()
+week2 <- c()
+c <- 1
+for (i in 1:10){
+  week1 <- append(week1, n_raw_dig12[[i]][c])
+  c <- 2
+  week2 <- append(week2, n_raw_dig12[[i]][c])
+  c <- 1
+}
+week1 <- data.frame("Name"=waste_n, "n"=as.numeric(week1), "Week"=1)#create dataframe for week1
+week2 <- data.frame("Name"=waste_n, "n"=as.numeric(week2), "Week"=2)#create dataframe for week2
+str(week1)
+str(week2)
+```
+
+-STEP 10: 
+
+  * Now that we have both dataframes for week1 and week2, we can proceed to wrangle the data for the rest of the weeks by creating a function "wrangle" that splits the data into weekn and week(n+1) for the raw_dig## variables:
+
+```{r}
+wrangle <- function(raw, waste_n, wn){
+  s <- str_split(raw,"\\s+")
+  week_a <- c()
+  week_b <- c()
+  c <- 1
+  for (i in 1:10){
+    week_a <- append(week_a, s[[i]][c])
+    c <- 2
+    week_b <- append(week_b, s[[i]][c])
+    c <- 1
+    }
+  week_a <- data.frame("Name"=waste_n, "n"=as.numeric(week_a), "Week"=wn[1])#create dataframe for week1
+  week_b <- data.frame("Name"=waste_n, "n"=as.numeric(week_b), "Week"=wn[2])#create dataframe for week2
+  return(list(week_a, week_b))
+}
+```
+
+  * Let us apply the function for all the weeks and make a dataframe for week 15 separately:
+
+```{r}
+week3 <- wrangle(raw_dig34, waste_n, c(3,4))[[1]]#dataframe for week 3
+week4 <- wrangle(raw_dig34, waste_n, c(3,4))[[2]]#dataframe for week 4
+
+week5 <- wrangle(raw_dig56, waste_n, c(5,6))[[1]]#dataframe for week 5
+week6 <- wrangle(raw_dig56, waste_n, c(5,6))[[2]]#dataframe for week 6
+
+week7 <- wrangle(raw_dig78, waste_n, c(7,8))[[1]]#dataframe for week 7
+week8 <- wrangle(raw_dig78, waste_n, c(7,8))[[2]]#dataframe for week 8
+
+week9 <- wrangle(raw_dig910, waste_n, c(9,10))[[1]]#dataframe for week 9
+week10 <- wrangle(raw_dig910, waste_n, c(9,10))[[2]]#dataframe for week 10
+
+week11 <- wrangle(raw_dig1112, waste_n, c(11, 12))[[1]]#dataframe for week 11
+week12 <- wrangle(raw_dig1112, waste_n, c(11, 12))[[2]]#dataframe for week 12
+
+week13 <- wrangle(raw_dig1314, waste_n, c(13, 14))[[1]]#dataframe for week 13
+week14 <- wrangle(raw_dig1314, waste_n, c(13, 14))[[2]]#dataframe for week 14
+
+week15 <- data.frame("Name"=waste_n, "n"=as.numeric(raw_dig15), "Week"=15) #we don't have to apply the function for week 15
+```
+
+-STEP 11: 
+
+  * Now that we have all the waste from the different weeks, we can make a data frame that contains all the weeks vertically:
+
+```{r}
+organic_waste <- rbind(week1, week2, week3, week4, week5, week6, week7, week8, week9, week10, week11, week12, week13, week14, week15)
+str(organic_waste)
+```
+
+-STEP 12:
+
+  * To confirm that organic_waste is the proper data frame, let us compare it with the Excel file:
+
+```{r}
+library(readxl)
+
+exl <- read_excel("Desperdicios.xlsx")
+exl <- data.frame("Name"=waste_n, exl) %>% select(-Producto)
+exl <- gather(exl, key = "Week", value = "n", -Name)
+#Let's change the spanish names for weekly waste to week numbers
+df <- exl %>% mutate(Week = recode(Week,
+                             "Desperdicios.en.1ra.semana..g."=1,
+                             "Desperdicios.en.2da.semana..g."=2,
+                             "Desperdicios.en.3ra.semana..g."=3,
+                             "Desperdicios.en.4ta.semana..g."=4,
+                             "Desperdicios.en.5ta.semana..g."=5,
+                             "Desperdicios.en.6ta.semana..g."=6,
+                             "Desperdicios.en.la.7ma.semana..g."=7,
+                             "Desperdicios.en.la.8va.semana..g."=8,
+                             "Desperdicios.en.la.9na.semana..g."=9,
+                             "Desperdicios.en.la.10ma.semana..g."=10,
+                             "Desperdicios.en.la.11va.semana..g."=11,
+                             "Desperdicios.en.la.12va.semana..g."=12,
+                             "Desperdicios.en.la.13va.semana..g."=13,
+                             "Desperdicios.en.la.14va.semana..g."=14,
+                             "Desperdicios.en.la.15va.semana..g."=15)) #Let's change the week names to numbers
+df <- df %>% select(-Week) %>% cbind("Week"=df$Week)#Let's place Week to the left for df and organic_waste to be identical
+identical(df,organic_waste) #Let's see if they are identical
+
+```
+
+ * Wee see that in fact they're identical. Thus, we can proceed with the analysis:
+ 
+
+ANALYSIS
+
+-STEP 1:
+
+  * Let's see what waste and in which week we had the highest mass (n represents the amount of grams):
+
+```{r}
+#Let's see what waste and in which week we had the highest mass (n is the mass of the organic waste in grams)
+organic_waste %>% filter(n==max(n))
+```
+
+  * Lettuce on week 12 was the organic waste that was heaviest. 
+  
+-STEP 2:
+
+  * Let's calculate the average organic waste per week:
+
+```{r}
+organic_waste %>% group_by(Week) %>% summarise(mean(n)) 
+```
+
+  * Wee see that on average week 2 had the most wastes.
+  
+-STEP 3:
+
+  * Let's see how much waste was produced per week:
+
+```{r}
+#Let's make a scatter plot to visualize better
+organic_waste %>% group_by(Week) %>% summarise(S=sum(n)) %>% 
+  ggplot(aes(Week,S, col=Week))+geom_point()+
+  ggtitle("Total organic wastes per week (scatterplot)")+
+  ylab("grams")+
+  geom_line()+geom_label(aes(label=S), size = 2)
+```
+
+  * Wee see 590.18g were organic waste on week 2, which makes us assume it was the week with most wastes.
+
+-STEP 4:
+
+  * Let's make some bar plots to see which products contributed to the waste:
+
+```{r}
+organic_waste %>% 
+  ggplot(aes(factor(Week), n, fill = Name))+
+  ggtitle("Total organic wastes per week (barplot 1)")+
+  ylab("grams")+xlab("Week")+
+  geom_bar(stat = "identity")
+
+organic_waste %>% filter(n>0) %>% 
+  ggplot(aes(factor(Week), n, fill = Name, label=n))+
+  ggtitle("Total organic wastes per week (barplot 2)")+
+  ylab("grams")+xlab("Week")+
+  geom_bar(stat = "identity")+
+  geom_text(size = 3, position = position_stack(vjust = 0.5))
+  
+organic_waste %>% group_by(Week) %>% summarise(S=sum(n)) %>% 
+  ggplot(aes(Week,S, fill=factor(Week)))+
+  ggtitle("Total organic wastes per week (barplot 3)")+
+  ylab("grams")+geom_bar(stat = "identity")+
+  geom_text(aes(label=S), size=3)
+  
+```
+
+  * barplot 2 makes us see that week 2 indeed had the greatest amount of waste, having 4 different types of organic waste. 
+  
+-STEP 5:
+
+  * Let's analyze how each organic waste behaved throughout the 15 weeks:
+
+```{r}
+organic_waste %>% 
+  ggplot(aes(Week, n, col = Name))+
+  ggtitle("Organic wastes")+
+  ylab("grams")+xlab("Week")+
+  geom_point()+geom_line() + scale_color_brewer(palette="Paired")
+```
+
+
+-STEP 6:
+
+ * Let's see on average how much of each product was waste throughout the 15 weeks:
+
+```{r}
+organic_waste %>% group_by(Name) %>% summarise(avg_waste=mean(n)) %>% ggplot(aes(reorder(Name, avg_waste), avg_waste, fill=Name))+
+  ggtitle("Average product waste")+ xlab("Organic product")+ 
+  theme(axis.text.x = element_text(angle = 90))+
+  geom_bar(stat = "identity")+geom_text(aes(label=round(avg_waste, 3)))
+```
+
+  * As expected, the lettuce has the highest average waste per week.
+
+-STEP 7:
+
+  * Let's calculate the number of times the organic waste was 0 and for which products:
+
+```{r}
+sum(organic_waste$n==0)
+organic_waste[organic_waste$n==0,] %>% group_by(Name) %>% count(n)
+```
+
+  * We see that oranges and tomatoes were never organic waste, since the number of times 0 appears is 15.
+
+-STEP 8:
+
+  * Let's see if there's any product that was wasted every single week, and if there is no product like that, let's compute the one that repeats the most throughout the weeks:
+
+```{r}
+#Mode function
+g_mode <- function(v) {
+   u_v <- unique(v)
+   u_v[which.max(tabulate(match(v, u_v)))]
+}
+#Let's calculate the product that repeats the most
+m <- organic_waste[organic_waste$n>0,] %>% summarise(g_mode(Name))
+#We know that Lemons are the most repeated organic wastes
+organic_waste[organic_waste$Name == m[1,],] %>% filter(n>0)
+organic_waste %>% filter(Name == m[1,], n>0) %>% summarise(count=n()) %>% cbind("name"=m[1,])
+```
+
+  * We see that lemons were the most frequent organic waste products, being disposed on weeks 1, 2, 11, and 15. Let's make a bar plot of this result:
+  
+```{r}
+organic_waste[organic_waste$Name == m[1,],] %>% filter(n>0) %>% 
+  ggplot(aes(factor(Week), n))+
+  ylab("Wasted grams") + ggtitle("Lemon waste") + xlab("Week")+
+  geom_bar(stat = "identity", fill="lightskyblue1") + 
+  geom_label(aes(label = n))
+```
+
+  * However, let's check the number of times each product became organic waste just to be sure that there are no other modes.
+
+```{r}
+organic_waste %>% filter(n>0) %>% group_by(Name) %>% summarise(r=n())
+```
+
+  * We see that indeed there are more modes. Both lettuce and lemons were wasted 4 times. So let's make a plot for lettuce as well:
+
+```{r}
+organic_waste[organic_waste$Name == "Lettuce",] %>% filter(n>0) %>% 
+  ggplot(aes(factor(Week), n))+
+  ylab("Wasted grams") + ggtitle("Lettuce waste") + xlab("Week")+
+  geom_bar(stat = "identity", fill="green4") + 
+  geom_label(aes(label = n))
+```
+
+  * We see that at the beginning of the 15 week period, and at the end of it, the greatest amount of grams of lettuce became organic waste. 
+
+-STEP 9: 
+
+  * Let's see in total how many product grams were wasted per organic product:
+
+```{r}
+organic_waste %>% group_by(Name) %>% summarise(tot_waste=sum(n)) %>% ggplot(aes(reorder(Name, tot_waste), tot_waste, fill=Name))+
+  ggtitle("Total product waste for 15 weeks")+
+  xlab("Organic Product")+
+  ylab("Total waste (g)")+ theme(axis.text.x = element_text(angle = 90))+
+  geom_bar(stat = "identity")+geom_text(aes(label=round(tot_waste, 3)))
+```
+
+```{r}
+organic_waste %>% group_by(Name) %>% summarise(tot_waste=sum(n)) %>% .$tot_waste %>% sum()
+```
+
+  * We see that in total, in the 15 week period, 1921.95 grams of food were wasted, lettuce being the organic product that was the most wasted. A way to optimize the organic waste could be by registering the amount of food bought (specifically in grams) at a certain time, and determining how much of the products we bought, at that certain time, became organic waste. If we did this for every time we buy the groceries, we could know on average how much of each product we buy and waste, and the difference between the average bought products and the average wasted products would tell us the average amount of food we need to buy in order to reduce our organic waste. 
+
+
+
+
